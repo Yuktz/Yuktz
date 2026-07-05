@@ -12,7 +12,7 @@
 //   attempts   key: 'id'  idx: taskId,sessionId – einzelne Versuche (für Fehler-Statistik)
 
 const DB_NAME = 'examcoach';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 /** @type {Promise<IDBDatabase> | null} */
 let dbPromise = null;
@@ -37,7 +37,9 @@ export function openDB() {
         tasks.createIndex('topicId', 'topicId', { unique: false });
         tasks.createIndex('moduleId', 'moduleId', { unique: false });
 
-        db.createObjectStore('reviews', { keyPath: 'taskId' });
+        const reviews = db.createObjectStore('reviews', { keyPath: 'taskId' });
+        reviews.createIndex('moduleId', 'moduleId', { unique: false });
+        reviews.createIndex('topicId', 'topicId', { unique: false });
 
         const sessions = db.createObjectStore('sessions', { keyPath: 'id' });
         sessions.createIndex('moduleId', 'moduleId', { unique: false });
@@ -46,6 +48,16 @@ export function openDB() {
         const attempts = db.createObjectStore('attempts', { keyPath: 'id' });
         attempts.createIndex('taskId', 'taskId', { unique: false });
         attempts.createIndex('sessionId', 'sessionId', { unique: false });
+        attempts.createIndex('moduleId', 'moduleId', { unique: false });
+      }
+
+      if (oldVersion < 2) {
+        // Nachträglich fehlende Indizes für bestehende Datenbanken ergänzen.
+        const reviews = req.transaction.objectStore('reviews');
+        if (!reviews.indexNames.contains('moduleId')) reviews.createIndex('moduleId', 'moduleId', { unique: false });
+        if (!reviews.indexNames.contains('topicId')) reviews.createIndex('topicId', 'topicId', { unique: false });
+        const attempts = req.transaction.objectStore('attempts');
+        if (!attempts.indexNames.contains('moduleId')) attempts.createIndex('moduleId', 'moduleId', { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);

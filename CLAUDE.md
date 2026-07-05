@@ -33,23 +33,32 @@ aber für beliebige Uni-Module). Läuft als installierbare PWA auf dem iPhone.
 ```
 index.html                 App-Shell (App-Bar, Router-Outlet, Tab-Bar)
 manifest.webmanifest        PWA-Manifest
-sw.js                       Service Worker (App-Shell-Cache, offline)
+sw.js                       Service Worker (App-Shell-Cache, offline; CACHE_VERSION bumpen!)
 css/styles.css              Design-System + alle Styles
 icons/                      generierte PNG-Icons (192/512/maskable/apple-touch)
+vendor/pdfjs/               lokal eingebundenes pdf.js 4.7.76 (mjs + worker, offline)
 js/
   app.js                    Entry: Routen, Tab-Sync, SW-Registrierung
   router.js                 Hash-Router (route/navigate/startRouter)
-  data/db.js                IndexedDB-Wrapper + Schema + CRUD-Helfer
+  data/db.js                IndexedDB-Wrapper + Schema (v2) + CRUD-Helfer
+  data/model.js             Modelle anlegen, KI-Kurs speichern, Bereitschaft & Mastery
+  data/scheduler.js         Spaced Repetition (Half-Life), Interleaving, Lernplan
+  data/progress.js          Sessions, Versuche, XP/Streak, Statistik-Aggregation
+  api/pdf.js                pdf.js-Wrapper: Textextraktion (clientseitig)
+  api/anthropic.js          Anthropic-Client: Streaming, Structured Outputs, Prompts
   util/dom.js               el()/mount()/toast() – DOM-Helfer
   ui/appbar.js              Steuert die obere App-Bar
-  ui/scaffold.js            Platzhalter-Bausteine für Stub-Views
+  ui/scaffold.js            Platzhalter-Bausteine (nur noch selten genutzt)
+  ui/loading.js             Vollbild-Ladeoverlay mit Fortschritt/Abbrechen
+  ui/charts.js              Inline-SVG: Gauge, Balken-, Linien-Diagramm
+  ui/player.js              Aufgaben-Player (mc/cloze/number/worked, Confidence, Fehlerart)
   views/
     modules.js              Module-Übersicht (Startseite)
-    module-new.js           Neues Modul anlegen (Feature 2)
-    module-detail.js        Modul-Detail
-    session.js              Lern-Session (Feature 4)
-    exam.js                 Klausur-Modus (Feature 5/6)
-    stats.js                Statistiken (Feature 7/8)
+    module-new.js           Modul anlegen + KI-Kursgenerierung (Feature 2)
+    module-detail.js        Themen, Lernplan-Einstellungen, Probeklausuren (Feature 3)
+    session.js              Lern-Session (Feature 4/7/8)
+    exam.js                 Lernplan/Burndown + Klausur-Simulation (Feature 5/6)
+    stats.js                Statistiken: Fehlermuster + Gamification (Feature 7/8)
     settings.js             API-Key + Daten-Reset (funktional)
 ```
 
@@ -76,15 +85,21 @@ erweitern. Bump ausserdem `CACHE_VERSION` in `sw.js` bei Shell-Dateiänderungen.
 
 Kaskadierendes Löschen eines Moduls: `deleteModuleCascade(moduleId)`.
 
-## Feature-Fahrplan (Reihenfolge einhalten, nach jedem Feature Rückfrage)
-1. **✅ Grundgerüst PWA** – Manifest, SW, Navigation zwischen den 5 Views. *(fertig)*
-2. Modul anlegen & KI-Kursgenerierung (pdf.js, Anthropic-API, JSON-Schema, Validierung/Retry). *Plan Mode.*
-3. Probeklausuren hochladen (Wichtigkeit erhöhen, Aufgaben übernehmen, Klausur-Pool).
-4. Spaced Repetition (Half-Life), Mastery (≥3 versch. Sessions), Interleaving. *Plan Mode.*
-5. Klausur-Modus mit Lernplan (Rückwärtsplanung, Neuberechnung, Burndown). *Plan Mode.*
-6. Klausur-Simulation (Timer, gemischt, Auswertung nach Thema).
-7. Fehlermuster-Tracking & Rechenweg-Eingabe.
-8. Confidence-Abfrage & dezente Gamification (XP, Streak).
+## Feature-Fahrplan – Status: **alle 8 umgesetzt** ✅
+1. **✅ Grundgerüst PWA** – Manifest, SW, Navigation zwischen den 5 Views.
+2. **✅ Modul anlegen & KI-Kursgenerierung** – pdf.js-Extraktion, Anthropic-Streaming, festes JSON-Schema (Structured Outputs), Retry bei Truncation/ungültigem JSON, Ladeanimation.
+3. **✅ Probeklausuren** – Analyse gg. Themen, Wichtigkeit erhöhen, Klausuraufgaben übernehmen (fromExam-Flag → Simulations-Pool).
+4. **✅ Spaced Repetition + Mastery + Interleaving** – Half-Life je Antwort/Confidence, Mastery ≥3 versch. Session-Tage, Interleaving über Themen, Reihenfolge-Gating neuer Themen.
+5. **✅ Klausur-Modus mit Lernplan** – Rückwärts-Tagespensum, Neuberechnung bei jedem Aufruf (verpasste Tage), komprimierte Intervalle nahe Termin, Soll-Kurve/Burndown, ehrlicher Bereitschafts-Score (keine Bestehens-Garantie).
+6. **✅ Klausur-Simulation** – Timer (90 s/Aufgabe), gemischte Aufgaben inkl. Probeklausur-Pool, keine Hinweise, Auswertung nach Thema.
+7. **✅ Fehlermuster-Tracking & Rechenweg** – worked-Aufgaben mit Rechenweg-Feld, Fehlerart-Auswahl bei falscher Antwort, Häufigkeits-Statistik.
+8. **✅ Confidence & Gamification** – 3-stufige Selbsteinschätzung (fließt in SR), XP pro Aufgabe, Tages-Streak, Fortschrittsbalken.
+
+### Modell-/Algorithmus-Details
+- **Half-Life**: korrekt → `hl *= {low:1.35, mid:2.0, high:2.6}`; falsch → `hl = max(0.2, hl*0.4)`; `dueAt = now + hl·Tag`. Nahe Termin auf `daysLeft/3` gedeckelt.
+- **Mastery**: Vereinigung der `correctSessionDays` über die Aufgaben eines Themas ≥ 3.
+- **Bereitschaft (0–100)**: `0.5·Mastery + 0.3·Ø-Recall + 0.2·Coverage`. Modul = gewichteter Schnitt nach Themen-Wichtigkeit.
+- **Gating**: nächstes Thema erst, wenn Vorgänger ≥ 50 % oder gefestigt.
 
 ## KI-Aufrufe (ab Feature 2) – Vorgaben
 - Endpoint `https://api.anthropic.com/v1/messages`
