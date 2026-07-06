@@ -265,6 +265,12 @@ h1, h2, h3, h4, p { margin: 0; }
 .timer { font-variant-numeric: tabular-nums; font-weight: 700; }
 .timer--warn { color: var(--warn); }
 
+/* ---------- KaTeX (LaTeX-Formeln) ---------- */
+.katex { font-size: 1.05em; }
+/* Breite abgesetzte Formeln horizontal scrollen statt Layout sprengen */
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 8px 0; }
+.katex-display > .katex { white-space: nowrap; }
+
 /* Placeholder scaffold note (Feature-1 stub views) */
 .scaffold-note {
   margin-top: 16px;

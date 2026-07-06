@@ -26,6 +26,10 @@ aber für beliebige Uni-Module). Läuft als installierbare PWA auf dem iPhone.
 - **IndexedDB** direkt über einen kleinen Promise-Wrapper (`js/data/db.js`),
   keine externe DB-Lib.
 - **pdf.js** (ab Feature 2) für clientseitige Textextraktion.
+- **KaTeX** (lokal eingebunden, offline) rendert LaTeX-Formeln in Aufgaben,
+  Lösungen und Rechenwegen. Skripte liegen oft im LaTeX-Format vor; die
+  KI-Prompts fordern KaTeX-Delimiter (`$…$` / `$$…$$`) an, `js/util/math.js`
+  rendert sie. Nur woff2-Fonts vendored (Safari lädt kein woff/ttf).
 - **Design**: mobil zuerst, iPhone-safe-areas, dunkles Standard-Theme mit
   Light-Mode via `prefers-color-scheme`. Design-Tokens in `css/styles.css`.
 
@@ -37,9 +41,11 @@ sw.js                       Service Worker (App-Shell-Cache, offline; CACHE_VERS
 css/styles.css              Design-System + alle Styles
 icons/                      generierte PNG-Icons (192/512/maskable/apple-touch)
 vendor/pdfjs/               lokal eingebundenes pdf.js 4.7.76 (mjs + worker, offline)
+vendor/katex/               lokal eingebundenes KaTeX (js + css + woff2-Fonts, offline)
 js/
   app.js                    Entry: Routen, Tab-Sync, SW-Registrierung
   router.js                 Hash-Router (route/navigate/startRouter)
+  util/math.js              KaTeX-Wrapper: rendert LaTeX ($…$ / $$…$$)
   data/db.js                IndexedDB-Wrapper + Schema (v2) + CRUD-Helfer
   data/model.js             Modelle anlegen, KI-Kurs speichern, Bereitschaft & Mastery
   data/scheduler.js         Spaced Repetition (Half-Life), Interleaving, Lernplan

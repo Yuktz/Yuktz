@@ -2,6 +2,7 @@
 // und (im Lernmodus) fragt Fehlerart & Confidence ab. Wird von Lern-Session und
 // Klausur-Simulation genutzt.
 import { el, mount } from '../util/dom.js';
+import { renderMath, mathEl } from '../util/math.js';
 import { FEHLERARTEN } from '../api/anthropic.js';
 
 const CONFIDENCE = [
@@ -39,7 +40,7 @@ export function renderTask(container, { task, topic, index, total, examMode = fa
     examMode ? el('span', { class: 'muted', style: 'font-size:12px' }, 'Klausur-Modus')
       : el('span', { class: 'muted', style: 'font-size:12px' }, topic?.title || ''),
   ]);
-  const question = el('div', { class: 'card', style: 'white-space:pre-wrap;font-size:16px;line-height:1.5' }, task.question);
+  const question = mathEl('div', { class: 'card', style: 'white-space:pre-wrap;font-size:16px;line-height:1.5' }, task.question);
 
   const inputWrap = el('div', { class: 'stack', style: 'margin-top:14px' });
   const feedbackWrap = el('div', {});
@@ -50,13 +51,13 @@ export function renderTask(container, { task, topic, index, total, examMode = fa
   if (task.type === 'mc') {
     const opts = task.options.length ? task.options : [task.answer];
     const btns = opts.map((opt) => {
-      const b = el('button', { class: 'btn btn--ghost btn--block', style: 'justify-content:flex-start;text-align:left', onClick: () => {
+      const b = el('button', { class: 'btn btn--ghost btn--block', style: 'justify-content:flex-start;text-align:left;height:auto;min-height:var(--tap);padding-top:10px;padding-bottom:10px', onClick: () => {
         selectedOption = opt;
         btns.forEach((x) => x.classList.remove('is-sel'));
         b.classList.add('is-sel');
         b.style.borderColor = 'var(--brand)';
         btns.forEach((x) => { if (x !== b) x.style.borderColor = ''; });
-      } }, opt);
+      } }, renderMath(el('span'), opt));
       return b;
     });
     mount(inputWrap, btns);
@@ -116,12 +117,12 @@ export function renderTask(container, { task, topic, index, total, examMode = fa
         el('span', {}, correct ? '✅ Richtig' : '❌ Nicht ganz'),
       ]),
       !correct ? el('div', { style: 'margin-top:8px;font-size:14px' }, [
-        el('span', { class: 'muted' }, 'Lösung: '), el('strong', {}, task.answer),
+        el('span', { class: 'muted' }, 'Lösung: '), renderMath(el('strong'), task.answer),
       ]) : null,
       task.steps.length ? el('div', { style: 'margin-top:10px' }, [
         el('div', { class: 'muted', style: 'font-size:12px;margin-bottom:4px' }, 'Lösungsweg'),
         el('ol', { style: 'margin:0;padding-left:18px;line-height:1.5;font-size:14px' },
-          task.steps.map((s) => el('li', {}, s))),
+          task.steps.map((s) => renderMath(el('li'), s))),
       ]) : null,
     ]);
 

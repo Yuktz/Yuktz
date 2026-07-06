@@ -87,6 +87,14 @@ const KLAUSUR_SCHEMA = {
   required: ['themen_gewichtung', 'klausur_aufgaben'],
 };
 
+// Wird an die System-Prompts angehängt, damit Mathe als KaTeX-taugliches
+// LaTeX geliefert wird (die App rendert $…$ / $$…$$ mit KaTeX).
+const MATH_HINT =
+  'WICHTIG für die Formatierung: Formuliere alle mathematischen Ausdrücke in LaTeX und ' +
+  'setze sie in KaTeX-Delimiter – inline zwischen $ … $, abgesetzt zwischen $$ … $$. ' +
+  'Verwende KEINE Code-Blöcke oder \\begin{equation}-Umgebungen ohne umschließende $$. ' +
+  'Beispiel: schreibe "$\\frac{a}{b}$" statt "a/b", wenn das Skript LaTeX nutzt.';
+
 const SYSTEM_KURS =
   'Du bist ein erfahrener Hochschul-Tutor und Prüfungsdidaktiker. Du analysierst ' +
   'Vorlesungsskripte und erstellst daraus einen strukturierten Übungskurs zur ' +
@@ -99,7 +107,8 @@ const SYSTEM_KURS =
   'nachvollziehbaren Lösungsschritte. "fehlerarten" nennt typische Fehler, die bei dieser ' +
   'Aufgabe auftreten können (nur bei Rechenaufgaben relevant, sonst leeres Array). ' +
   '"wichtigkeit" (1–5) schätzt die Klausurrelevanz des Themas. "reihenfolge" gibt eine ' +
-  'sinnvolle Lernreihenfolge an (aufsteigend, beginnend bei 1).';
+  'sinnvolle Lernreihenfolge an (aufsteigend, beginnend bei 1). ' +
+  MATH_HINT;
 
 /** Baut den Request-Body für einen strukturierten Aufruf. */
 function buildBody(system, userText, schema, maxTokens) {
@@ -230,7 +239,8 @@ export async function analyzeExam(examText, topicTitles, opts = {}) {
     'Für "themen_gewichtung": schätze pro bekanntem Thema, wie häufig es in der Klausur vorkommt ' +
     '(0 = gar nicht, 3 = sehr häufig). Für "klausur_aufgaben": extrahiere die einzelnen ' +
     'Klausuraufgaben, ordne jede dem am besten passenden bekannten Thema zu ("thema_titel") und ' +
-    'formuliere sie als Übungsaufgabe gemäß Aufgaben-Schema (mit Lösung, Lösungsweg, Fehlerarten).';
+    'formuliere sie als Übungsaufgabe gemäß Aufgaben-Schema (mit Lösung, Lösungsweg, Fehlerarten). ' +
+    MATH_HINT;
   const user =
     'Bekannte Themen:\n' + topicTitles.map((t) => '- ' + t).join('\n') +
     '\n\n--- PROBEKLAUSUR ---\n' + examText.slice(0, 100000);
