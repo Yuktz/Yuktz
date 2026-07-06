@@ -5,7 +5,7 @@
  *   - Cross-origin (api.anthropic.com etc.): never intercepted – always network.
  * Bump CACHE_VERSION whenever shell files change to force an update.
  */
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = `examcoach-${CACHE_VERSION}`;
 
 const APP_SHELL = [

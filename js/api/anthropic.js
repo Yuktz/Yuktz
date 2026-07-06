@@ -90,10 +90,25 @@ const KLAUSUR_SCHEMA = {
 // Wird an die System-Prompts angehängt, damit Mathe als KaTeX-taugliches
 // LaTeX geliefert wird (die App rendert $…$ / $$…$$ mit KaTeX).
 const MATH_HINT =
-  'WICHTIG für die Formatierung: Formuliere alle mathematischen Ausdrücke in LaTeX und ' +
-  'setze sie in KaTeX-Delimiter – inline zwischen $ … $, abgesetzt zwischen $$ … $$. ' +
-  'Verwende KEINE Code-Blöcke oder \\begin{equation}-Umgebungen ohne umschließende $$. ' +
-  'Beispiel: schreibe "$\\frac{a}{b}$" statt "a/b", wenn das Skript LaTeX nutzt.';
+  'FORMATIERUNG (zwingend): JEDER mathematische Ausdruck – auch Brüche, Vektoren, Matrizen, ' +
+  'Indizes, Exponenten, griechische Buchstaben, Mengen, Integrale – MUSS in KaTeX-Delimiter ' +
+  'stehen: inline zwischen $ … $, abgesetzt zwischen $$ … $$. Das gilt gleichermaßen in ' +
+  '"frage", in jeder "optionen"-Option, in "loesung" und in JEDEM "loesungsweg"-Schritt. ' +
+  'Niemals rohes LaTeX ohne $-Delimiter und keine \\begin{…}-Umgebung außerhalb von $$. ' +
+  'Beispiele: "$\\frac{a}{b}$", "$\\vec{v}\\in\\mathbb{R}^n$", "$$A=\\begin{pmatrix}1&0\\\\0&1\\end{pmatrix}$$".';
+
+// Leitplanken für Qualität und Auswertbarkeit der Aufgaben.
+const QUALITY_HINT =
+  'QUALITÄT: Keine banalen oder rein definitorischen Fragen – jede Aufgabe soll echtes ' +
+  'Verständnis oder Anwendung prüfen (rechnen, herleiten, Konzepte anwenden, Gegenbeispiele). ' +
+  'Innerhalb eines Themas steigende Schwierigkeit (leicht → mittel → schwer) und Abdeckung der ' +
+  'typischen Klausur- und Fehlerquellen. AUSWERTBARKEIT: Bevorzuge die Typen "mc" und "number", ' +
+  'weil sie eindeutig automatisch geprüft werden. "mc": genau eine richtige Option plus 3 ' +
+  'plausible Distraktoren aus typischen Fehlern; "loesung" = exakter Text der richtigen Option. ' +
+  '"number": die Lösung ist EINE Dezimalzahl (Punkt oder Komma), keine Brüche/Wurzeln als Text. ' +
+  'Nutze "cloze" nur für kurze, eindeutig tippbare Antworten (ein Wort/Begriff). Nutze "worked" ' +
+  'für Herleitungen/mehrschrittige Rechnungen – diese bewertet der Nutzer per Selbsteinschätzung, ' +
+  'deshalb hier einen ausführlichen, gut erklärten "loesungsweg" liefern.';
 
 const SYSTEM_KURS =
   'Du bist ein erfahrener Hochschul-Tutor und Prüfungsdidaktiker. Du analysierst ' +
@@ -108,7 +123,7 @@ const SYSTEM_KURS =
   'Aufgabe auftreten können (nur bei Rechenaufgaben relevant, sonst leeres Array). ' +
   '"wichtigkeit" (1–5) schätzt die Klausurrelevanz des Themas. "reihenfolge" gibt eine ' +
   'sinnvolle Lernreihenfolge an (aufsteigend, beginnend bei 1). ' +
-  MATH_HINT;
+  QUALITY_HINT + ' ' + MATH_HINT;
 
 /**
  * Baut einen fertigen Prompt zum manuellen Ausführen in claude.ai (Pro/Free),

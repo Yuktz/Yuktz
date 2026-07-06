@@ -6,6 +6,7 @@ import { setAppbar } from '../ui/appbar.js';
 import { showOverlay } from '../ui/loading.js';
 import { loadTopicsWithState, moduleReadiness, addExamTasks, refreshModuleReadiness } from '../data/model.js';
 import { gauge } from '../ui/charts.js';
+import { renderMath } from '../util/math.js';
 import { fileToText } from '../api/pdf.js';
 import { analyzeExam } from '../api/anthropic.js';
 
@@ -63,7 +64,7 @@ export async function render(view, ctx) {
     el('div', { class: 'row row--between' }, [
       el('div', { class: 'grow' }, [
         el('div', { class: 'row', style: 'gap:8px' }, [
-          el('strong', { style: 'font-size:15px' }, t.title),
+          renderMath(el('strong', { style: 'font-size:15px' }), t.title),
           t.mastered ? el('span', { class: 'pill', style: 'background:rgba(34,197,94,.14);color:var(--ok)' }, '✓ gefestigt') : null,
         ]),
         el('div', { class: 'muted', style: 'font-size:12px;margin-top:2px' },
