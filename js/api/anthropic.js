@@ -110,6 +110,64 @@ const SYSTEM_KURS =
   'sinnvolle Lernreihenfolge an (aufsteigend, beginnend bei 1). ' +
   MATH_HINT;
 
+/**
+ * Baut einen fertigen Prompt zum manuellen Ausführen in claude.ai (Pro/Free),
+ * damit ohne API-Guthaben generiert werden kann. Antwort = reines JSON.
+ */
+export function buildCoursePrompt(scriptText = '') {
+  const schema =
+`{
+  "themen": [
+    {
+      "titel": "string",
+      "wichtigkeit": 1-5,                 // Ganzzahl, Klausurrelevanz
+      "zusammenfassung": "string",
+      "reihenfolge": 1,                   // Ganzzahl, Lernreihenfolge ab 1
+      "aufgaben": [
+        {
+          "typ": "mc" | "cloze" | "number" | "worked",
+          "frage": "string",
+          "optionen": ["..."],            // nur bei "mc" die Optionen, sonst []
+          "loesung": "string",            // bei mc: exakter Text der richtigen Option
+          "loesungsweg": ["Schritt 1", "Schritt 2"],
+          "schwierigkeit": 1-3,
+          "fehlerarten": []               // nur Rechenaufgaben, aus: ${FEHLERARTEN.join(', ')}
+        }
+      ]
+    }
+  ]
+}`;
+  return [
+    SYSTEM_KURS,
+    '',
+    'Gib deine Antwort AUSSCHLIESSLICH als ein JSON-Objekt zurück, das exakt diesem Schema entspricht – kein Fließtext davor/danach, keine ```-Code-Fences, keine Kommentare:',
+    schema,
+    '',
+    'Pro Thema 4–8 Aufgaben unterschiedlicher Schwierigkeit und Typen.',
+    '',
+    scriptText.trim()
+      ? '--- SKRIPT ---\n' + scriptText.slice(0, 100000)
+      : '(Das Vorlesungsskript ist als PDF angehängt.)',
+  ].join('\n');
+}
+
+/** Parst die (evtl. mit Text/Fences umrahmte) JSON-Antwort zu einem Kurs. */
+export function parseCourseJson(raw) {
+  let s = String(raw || '').trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  const a = s.indexOf('{');
+  const b = s.lastIndexOf('}');
+  if (a >= 0 && b > a) s = s.slice(a, b + 1);
+  let obj;
+  try { obj = JSON.parse(s); }
+  catch { throw new Error('Das eingefügte JSON ist ungültig. Bitte Claudes Antwort komplett kopieren.'); }
+  if (!obj || !Array.isArray(obj.themen) || !obj.themen.length) {
+    throw new Error('Im JSON wurde keine „themen"-Liste gefunden.');
+  }
+  return obj;
+}
+
 /** Baut den Request-Body für einen strukturierten Aufruf. */
 function buildBody(system, userText, schema, maxTokens) {
   return {
