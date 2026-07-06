@@ -40,7 +40,7 @@ manifest.webmanifest        PWA-Manifest
 sw.js                       Service Worker (App-Shell-Cache, offline; CACHE_VERSION bumpen!)
 css/styles.css              Design-System + alle Styles
 icons/                      generierte PNG-Icons (192/512/maskable/apple-touch)
-vendor/pdfjs/               lokal eingebundenes pdf.js 4.7.76 (mjs + worker, offline)
+vendor/pdfjs/               lokal eingebundenes pdf.js 4.7.76 (.js + worker, offline; .js statt .mjs für simple Static-Server)
 vendor/katex/               lokal eingebundenes KaTeX (js + css + woff2-Fonts, offline)
 js/
   app.js                    Entry: Routen, Tab-Sync, SW-Registrierung

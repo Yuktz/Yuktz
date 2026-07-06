@@ -5,7 +5,7 @@
  *   - Cross-origin (api.anthropic.com etc.): never intercepted – always network.
  * Bump CACHE_VERSION whenever shell files change to force an update.
  */
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `examcoach-${CACHE_VERSION}`;
 
 const APP_SHELL = [
@@ -35,8 +35,8 @@ const APP_SHELL = [
   './js/views/exam.js',
   './js/views/stats.js',
   './js/views/settings.js',
-  './vendor/pdfjs/pdf.min.mjs',
-  './vendor/pdfjs/pdf.worker.min.mjs',
+  './vendor/pdfjs/pdf.min.js',
+  './vendor/pdfjs/pdf.worker.min.js',
   './vendor/katex/katex.min.css',
   './vendor/katex/katex.min.js',
   './vendor/katex/auto-render.min.js',

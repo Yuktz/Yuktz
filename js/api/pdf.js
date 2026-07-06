@@ -5,8 +5,10 @@ let pdfjsLib = null;
 
 async function loadPdfjs() {
   if (pdfjsLib) return pdfjsLib;
-  pdfjsLib = await import('../../vendor/pdfjs/pdf.min.mjs');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../../vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
+  // Als .js (statt .mjs) eingebunden, damit auch simple Static-Server ohne
+  // .mjs-MIME-Mapping (z. B. Python http.server unter Windows) die Datei laden.
+  pdfjsLib = await import('../../vendor/pdfjs/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../../vendor/pdfjs/pdf.worker.min.js', import.meta.url).href;
   return pdfjsLib;
 }
 
