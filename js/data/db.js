@@ -12,7 +12,7 @@
 //   attempts   key: 'id'  idx: taskId,sessionId – einzelne Versuche (für Fehler-Statistik)
 
 const DB_NAME = 'examcoach';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /** @type {Promise<IDBDatabase> | null} */
 let dbPromise = null;
@@ -58,6 +58,14 @@ export function openDB() {
         if (!reviews.indexNames.contains('topicId')) reviews.createIndex('topicId', 'topicId', { unique: false });
         const attempts = req.transaction.objectStore('attempts');
         if (!attempts.indexNames.contains('moduleId')) attempts.createIndex('moduleId', 'moduleId', { unique: false });
+      }
+
+      if (oldVersion < 3) {
+        // Kapitel-Ebene (mehrere Skripte pro Modul).
+        if (!db.objectStoreNames.contains('chapters')) {
+          const chapters = db.createObjectStore('chapters', { keyPath: 'id' });
+          chapters.createIndex('moduleId', 'moduleId', { unique: false });
+        }
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -117,15 +125,17 @@ export async function del(store, key) {
 
 /** Delete a module and everything belonging to it (cascade). */
 export async function deleteModuleCascade(moduleId) {
-  const [topics, tasks, sessions] = await Promise.all([
+  const [chapters, topics, tasks, sessions] = await Promise.all([
+    getAllBy('chapters', 'moduleId', moduleId),
     getAllBy('topics', 'moduleId', moduleId),
     getAllBy('tasks', 'moduleId', moduleId),
     getAllBy('sessions', 'moduleId', moduleId),
   ]);
   const db = await openDB();
   await new Promise((resolve, reject) => {
-    const t = db.transaction(['modules', 'topics', 'tasks', 'reviews', 'sessions', 'attempts'], 'readwrite');
+    const t = db.transaction(['modules', 'chapters', 'topics', 'tasks', 'reviews', 'sessions', 'attempts'], 'readwrite');
     t.objectStore('modules').delete(moduleId);
+    chapters.forEach((x) => t.objectStore('chapters').delete(x.id));
     topics.forEach((x) => t.objectStore('topics').delete(x.id));
     tasks.forEach((x) => {
       t.objectStore('tasks').delete(x.id);

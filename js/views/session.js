@@ -1,6 +1,6 @@
 // View: Lern-Session – interleaved Spaced-Repetition-Durchlauf (Feature 4/7/8).
 import { el, mount, toast } from '../util/dom.js';
-import { getAll, get } from '../data/db.js';
+import { getAll, get, getSetting, setSetting } from '../data/db.js';
 import { navigate } from '../router.js';
 import { setAppbar } from '../ui/appbar.js';
 import { buildSession } from '../data/scheduler.js';
@@ -15,22 +15,28 @@ export async function render(view, ctx) {
   const mod = await get('modules', moduleId);
   if (!mod) { navigate('/session'); return; }
 
-  setAppbar({ title: 'Lernen', showBack: true, onBack: () => navigate('/modules/' + moduleId) });
+  const chapterId = ctx.query.get('chapter');
+  const challenge = ctx.query.get('mode') === 'challenge';
+  const title = challenge ? '⚡ Challenge' : 'Lernen';
+  setAppbar({ title, showBack: true, onBack: () => navigate('/modules/' + moduleId) });
 
-  const limit = Math.max(5, Math.min(25, Math.round((mod.minutesPerDay || 30) / 1.4)));
-  const items = await buildSession(moduleId, { limit });
+  const baseLimit = Math.max(5, Math.min(25, Math.round((mod.minutesPerDay || 30) / 1.4)));
+  const limit = challenge ? 10 : baseLimit;
+  const items = await buildSession(moduleId, { limit, chapterId, challenge });
 
   if (!items.length) {
     mount(view, el('div', { class: 'empty' }, [
       el('span', { class: 'empty__emoji' }, '🎉'),
-      el('div', { class: 'empty__title' }, 'Nichts fällig'),
-      el('div', { class: 'empty__text' }, 'Für dieses Modul steht aktuell keine Wiederholung an. Komm später wieder – oder lege neue Themen frei, indem du bestehende festigst.'),
+      el('div', { class: 'empty__title' }, challenge ? 'Noch nicht genug Stoff' : 'Nichts fällig'),
+      el('div', { class: 'empty__text' }, challenge
+        ? 'Für eine Challenge brauchst du etwas mehr freigeschalteten Stoff. Lerne zuerst ein paar Kapitel.'
+        : 'Für dieses Modul steht aktuell keine Wiederholung an. Komm später wieder – oder festige bestehende Themen, um neue freizuschalten.'),
       el('button', { class: 'btn btn--ghost', onClick: () => navigate('/modules/' + moduleId) }, 'Zum Modul'),
     ]));
     return;
   }
 
-  const session = await startSession(moduleId, 'learn');
+  const session = await startSession(moduleId, challenge ? 'challenge' : 'learn');
   let index = 0;
   let gainedTotal = 0;
 
@@ -63,19 +69,25 @@ export async function render(view, ctx) {
   }
 
   async function finishSession() {
+    const bonus = challenge && session.correct === session.total && session.total > 0 ? 25 : (challenge ? 10 : 0);
+    if (bonus) {
+      session.xp += bonus;
+      await setSetting('totalXp', (await getSetting('totalXp', 0)) + bonus);
+    }
     await endSession(session);
     const acc = Math.round((100 * session.correct) / session.total);
     progress.firstChild.style.width = '100%';
     mount(stage, el('div', { class: 'card', style: 'text-align:center' }, [
       el('div', { style: 'font-size:44px' }, acc >= 70 ? '🏆' : '💪'),
-      el('h3', { style: 'font-size:20px;font-weight:800;margin-top:6px' }, 'Session abgeschlossen'),
+      el('h3', { style: 'font-size:20px;font-weight:800;margin-top:6px' }, challenge ? 'Challenge abgeschlossen' : 'Session abgeschlossen'),
+      bonus ? el('div', { class: 'pill', style: 'margin:8px auto 0' }, `⚡ Challenge-Bonus +${bonus} XP`) : null,
       el('div', { class: 'stat-grid', style: 'margin-top:16px' }, [
         stat(`${session.correct}/${session.total}`, 'richtig'),
         stat(`${acc}%`, 'Quote'),
-        stat(`+${gainedTotal}`, 'XP'),
+        stat(`+${gainedTotal + bonus}`, 'XP'),
       ]),
       el('div', { class: 'row', style: 'gap:8px;margin-top:18px' }, [
-        el('button', { class: 'btn btn--primary grow', onClick: () => render(view, ctx) }, 'Weiter lernen'),
+        el('button', { class: 'btn btn--primary grow', onClick: () => render(view, ctx) }, challenge ? 'Nochmal' : 'Weiter lernen'),
         el('button', { class: 'btn btn--ghost grow', onClick: () => navigate('/modules/' + moduleId) }, 'Zum Modul'),
       ]),
     ]));

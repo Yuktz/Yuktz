@@ -2,7 +2,7 @@
 import { getAllBy, get } from './db.js';
 import {
   dayKey, MASTERY_SESSIONS, UNLOCK_READINESS,
-  topicReadiness, isMastered, distinctCorrectDays, moduleReadiness, loadTopicsWithState,
+  topicReadiness, isMastered, distinctCorrectDays, moduleReadiness, loadTopicsWithState, loadChaptersWithState,
 } from './model.js';
 
 const DAY_MS = 86400000;
@@ -57,17 +57,32 @@ function unlockedTopicIds(topics) {
   return unlocked;
 }
 
+const shuffle = (a) => { const x = [...a]; for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
+
+/** Ermittelt das aktuell zu lernende Kapitel (erstes freigeschaltetes, das noch nicht fertig ist). */
+export function currentChapter(chapters) {
+  const unlocked = chapters.filter((c) => c.unlocked);
+  return unlocked.find((c) => c.dueCount > 0 || c.readiness < 100) || unlocked[unlocked.length - 1] || null;
+}
+
 /**
- * Baut eine interleaved Lern-Session: fällige Aufgaben + behutsam neue,
- * gemischt über verschiedene Themen.
+ * Baut eine interleaved Lern-Session.
+ *  - default:   fokussiert das aktuelle Kapitel (neue + fällige Aufgaben daraus).
+ *  - chapterId: genau dieses Kapitel.
+ *  - challenge: gemischt über ALLE freigeschalteten Kapitel (Duolingo-Style).
  * @returns {Promise<Array>} Liste von {task, review, topic}
  */
-export async function buildSession(moduleId, { limit = 15, maxNew = 8, now = Date.now() } = {}) {
-  const mod = await get('modules', moduleId);
-  const topics = await loadTopicsWithState(moduleId, now);
-  const topicById = new Map(topics.map((t) => [t.id, t]));
+export async function buildSession(moduleId, { limit = 15, maxNew = 8, now = Date.now(), chapterId = null, challenge = false } = {}) {
+  const chapters = await loadChaptersWithState(moduleId, now);
   const reviews = await getAllBy('reviews', 'moduleId', moduleId);
-  const unlocked = unlockedTopicIds(topics);
+
+  let candidateTopics;
+  if (challenge) candidateTopics = chapters.filter((c) => c.unlocked).flatMap((c) => c.topics);
+  else if (chapterId) candidateTopics = (chapters.find((c) => c.id === chapterId)?.topics) || [];
+  else candidateTopics = currentChapter(chapters)?.topics || [];
+
+  const topicById = new Map(candidateTopics.map((t) => [t.id, t]));
+  const unlocked = challenge ? new Set(candidateTopics.map((t) => t.id)) : unlockedTopicIds(candidateTopics);
 
   const due = [];
   const fresh = [];
@@ -80,23 +95,28 @@ export async function buildSession(moduleId, { limit = 15, maxNew = 8, now = Dat
     else if (!started) fresh.push({ review: r, topic });
   }
 
-  // Fällige zuerst: nach Überfälligkeit × Themen-Wichtigkeit priorisieren.
-  due.sort((a, b) =>
-    ((now - b.review.dueAt) * b.topic.weight) - ((now - a.review.dueAt) * a.topic.weight));
-  // Neue nach Themen-Reihenfolge und Schwierigkeit.
+  due.sort((a, b) => ((now - b.review.dueAt) * b.topic.weight) - ((now - a.review.dueAt) * a.topic.weight));
   fresh.sort((a, b) => a.topic.order - b.topic.order);
 
-  const chosen = due.slice(0, limit);
+  const chosen = (challenge ? shuffle(due) : due).slice(0, limit);
   const room = Math.min(limit - chosen.length, maxNew);
-  chosen.push(...fresh.slice(0, Math.max(0, room)));
+  chosen.push(...(challenge ? shuffle(fresh) : fresh).slice(0, Math.max(0, room)));
 
-  // Aufgaben laden
+  // Challenge: mit bereits geübten (noch nicht fälligen) Aufgaben auffüllen, damit gemischt wird.
+  if (challenge && chosen.length < limit) {
+    const seen = new Set(chosen.map((c) => c.review.taskId));
+    const extra = reviews
+      .filter((r) => topicById.has(r.topicId) && r.reps > 0 && r.dueAt > now && !seen.has(r.taskId))
+      .map((r) => ({ review: r, topic: topicById.get(r.topicId) }));
+    chosen.push(...shuffle(extra).slice(0, limit - chosen.length));
+  }
+
   const withTasks = [];
   for (const c of chosen) {
     const task = await get('tasks', c.review.taskId);
     if (task) withTasks.push({ task, review: c.review, topic: c.topic });
   }
-  return interleave(withTasks);
+  return challenge ? shuffle(withTasks) : interleave(withTasks);
 }
 
 /** Ordnet so um, dass möglichst keine zwei gleichen Themen aufeinanderfolgen. */

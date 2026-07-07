@@ -20,6 +20,36 @@ export async function createModule(name) {
   return mod;
 }
 
+/** Legt ein neues Kapitel im Modul an (fortlaufende Nummer). */
+export async function createChapter(moduleId, title) {
+  const existing = await getAllBy('chapters', 'moduleId', moduleId);
+  const order = existing.length + 1;
+  const ch = { id: uid('c_'), moduleId, title: (title || '').trim() || `Kapitel ${order}`, order, createdAt: Date.now() };
+  await put('chapters', ch);
+  return ch;
+}
+
+/**
+ * Stellt sicher, dass ein Modul mindestens ein Kapitel hat und alle Themen
+ * einem Kapitel zugeordnet sind (Back-Compat für vor der Kapitel-Ebene
+ * angelegte Module).
+ */
+export async function ensureChapters(moduleId) {
+  let chapters = await getAllBy('chapters', 'moduleId', moduleId);
+  const topics = await getAllBy('topics', 'moduleId', moduleId);
+  if (chapters.length === 0 && topics.length) {
+    const ch = await createChapter(moduleId, 'Kapitel 1');
+    chapters = [ch];
+  }
+  if (chapters.length) {
+    const firstId = chapters.sort((a, b) => a.order - b.order)[0].id;
+    for (const t of topics) {
+      if (!t.chapterId) { t.chapterId = firstId; await put('topics', t); }
+    }
+  }
+  return chapters.sort((a, b) => a.order - b.order);
+}
+
 function newReview(task) {
   return {
     taskId: task.id, topicId: task.topicId, moduleId: task.moduleId,
@@ -30,14 +60,14 @@ function newReview(task) {
 }
 
 /** Speichert einen KI-generierten Kurs als Themen/Aufgaben/Reviews. */
-export async function saveGeneratedCourse(moduleId, kurs) {
+export async function saveGeneratedCourse(moduleId, kurs, chapterId = null) {
   const topics = [];
   const tasks = [];
   const reviews = [];
   const themen = [...(kurs.themen || [])].sort((a, b) => (a.reihenfolge ?? 0) - (b.reihenfolge ?? 0));
   themen.forEach((t, ti) => {
     const topic = {
-      id: uid('t_'), moduleId, title: t.titel, weight: clamp(t.wichtigkeit ?? 3, 1, 5),
+      id: uid('t_'), moduleId, chapterId, title: t.titel, weight: clamp(t.wichtigkeit ?? 3, 1, 5),
       order: t.reihenfolge ?? ti + 1, summary: t.zusammenfassung || '',
       readiness: 0, mastered: false,
     };
@@ -66,8 +96,8 @@ export async function saveGeneratedCourse(moduleId, kurs) {
   return { topics: topics.length, tasks: tasks.length };
 }
 
-/** Fügt zusätzliche (Klausur-)Aufgaben zu einem bestehenden Thema hinzu. */
-export async function addExamTasks(moduleId, topicId, aufgaben) {
+/** Fügt zusätzliche Aufgaben zu einem bestehenden Thema hinzu. */
+export async function addTasksToTopic(moduleId, topicId, aufgaben, { fromExam = false } = {}) {
   const tasks = [];
   const reviews = [];
   for (const a of aufgaben) {
@@ -77,7 +107,7 @@ export async function addExamTasks(moduleId, topicId, aufgaben) {
       steps: Array.isArray(a.loesungsweg) ? a.loesungsweg : [],
       difficulty: clamp(a.schwierigkeit ?? 2, 1, 3),
       errorTags: Array.isArray(a.fehlerarten) ? a.fehlerarten : [],
-      fromExam: true, createdAt: Date.now(),
+      fromExam, createdAt: Date.now(),
     };
     tasks.push(task);
     reviews.push(newReview(task));
@@ -85,6 +115,11 @@ export async function addExamTasks(moduleId, topicId, aufgaben) {
   await putAll('tasks', tasks);
   await putAll('reviews', reviews);
   return tasks;
+}
+
+/** Klausuraufgaben übernehmen (fromExam-Flag → Simulations-Pool). */
+export function addExamTasks(moduleId, topicId, aufgaben) {
+  return addTasksToTopic(moduleId, topicId, aufgaben, { fromExam: true });
 }
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Math.round(n)));
@@ -158,4 +193,37 @@ export async function refreshModuleReadiness(moduleId) {
   const mod = await get('modules', moduleId);
   if (mod) { mod.readiness = readiness; mod.topicCount = topics.length; await put('modules', mod); }
   return { readiness, topics };
+}
+
+/**
+ * Lädt die Kapitel eines Moduls, jeweils mit ihren Themen (inkl. Zustand),
+ * aggregierter Bereitschaft und Freischalt-Status (sequentielles Gating).
+ */
+export async function loadChaptersWithState(moduleId, now = Date.now()) {
+  const chapters = await ensureChapters(moduleId);
+  const topics = await loadTopicsWithState(moduleId, now);
+  const byChapter = new Map();
+  const fallback = chapters[0]?.id;
+  for (const t of topics) {
+    const cid = t.chapterId || fallback;
+    if (!byChapter.has(cid)) byChapter.set(cid, []);
+    byChapter.get(cid).push(t);
+  }
+  const out = chapters.map((c) => {
+    const ts = (byChapter.get(c.id) || []).sort((a, b) => a.order - b.order);
+    return {
+      ...c, topics: ts,
+      readiness: moduleReadiness(ts),
+      mastered: ts.length > 0 && ts.every((t) => t.mastered),
+      dueCount: ts.reduce((s, t) => s + t.dueCount, 0),
+      taskCount: ts.reduce((s, t) => s + t.taskCount, 0),
+    };
+  });
+  // Sequentielles Kapitel-Gating: Kapitel N erst frei, wenn N-1 gefestigt/≥Score.
+  out.forEach((c, i) => {
+    if (i === 0) { c.unlocked = true; return; }
+    const prev = out[i - 1];
+    c.unlocked = prev.unlocked && (prev.mastered || prev.readiness >= UNLOCK_READINESS);
+  });
+  return out;
 }

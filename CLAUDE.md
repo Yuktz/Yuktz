@@ -57,26 +57,31 @@ js/
   ui/scaffold.js            Platzhalter-Bausteine (nur noch selten genutzt)
   ui/loading.js             Vollbild-Ladeoverlay mit Fortschritt/Abbrechen
   ui/charts.js              Inline-SVG: Gauge, Balken-, Linien-Diagramm
-  ui/player.js              Aufgaben-Player (mc/cloze/number/worked, Confidence, Fehlerart)
+  ui/player.js              Aufgaben-Player (mc/cloze/number/worked, Selbsteinschätzung, Symbolleiste)
+  ui/coursegen.js           Wiederverwendbares Generier-Panel (API + claude.ai-Import)
   views/
     modules.js              Module-Übersicht (Startseite)
-    module-new.js           Modul anlegen + KI-Kursgenerierung (Feature 2)
-    module-detail.js        Themen, Lernplan-Einstellungen, Probeklausuren (Feature 3)
+    module-new.js           Modul anlegen (+ erstes Kapitel) – KI-Kursgenerierung (Feature 2)
+    module-detail.js        Kapitel, Challenge, Schwächen, Lernplan, Probeklausuren
+    chapter-new.js          Weiteres Kapitel/Skript zu einem Modul hinzufügen
+    deepen.js               Schwäche vertiefen: Zusatzaufgaben zu einem Thema
     session.js              Lern-Session (Feature 4/7/8)
     exam.js                 Lernplan/Burndown + Klausur-Simulation (Feature 5/6)
     stats.js                Statistiken: Fehlermuster + Gamification (Feature 7/8)
     settings.js             API-Key + Daten-Reset (funktional)
 ```
 
-## Datenmodell (IndexedDB-Stores, Schema v1)
+## Datenmodell (IndexedDB-Stores, Schema v3)
 Bump `DB_VERSION` in `js/data/db.js` bei Schemaänderungen und `onupgradeneeded`
 erweitern. Bump ausserdem `CACHE_VERSION` in `sw.js` bei Shell-Dateiänderungen.
 
 - **settings** `key` → `{ key, value }`  · z.B. `apiKey`, `streak`, Flags
 - **modules** `id` → Modul: `{ id, name, createdAt, examDate?, minutesPerDay?,
   topicCount, readiness }`
-- **topics** `id`, idx `moduleId` → Thema: `{ id, moduleId, title, weight
-  (Wichtigkeit), order, readiness (0-100), mastered:boolean }`
+- **chapters** `id`, idx `moduleId` → Kapitel (ein Skript): `{ id, moduleId,
+  title, order }`. Ein Modul hat mehrere Kapitel; sequentielles Gating.
+- **topics** `id`, idx `moduleId` → Thema: `{ id, moduleId, chapterId, title,
+  weight (Wichtigkeit), order, readiness (0-100), mastered:boolean }`
 - **tasks** `id`, idx `topicId`,`moduleId` → Übungsaufgabe: `{ id, topicId,
   moduleId, type ('mc'|'cloze'|'number'|'worked'), question, options?, answer,
   steps[] (Lösungsweg), difficulty, errorTags[], fromExam:boolean }`
@@ -100,6 +105,18 @@ Kaskadierendes Löschen eines Moduls: `deleteModuleCascade(moduleId)`.
 6. **✅ Klausur-Simulation** – Timer (90 s/Aufgabe), gemischte Aufgaben inkl. Probeklausur-Pool, keine Hinweise, Auswertung nach Thema.
 7. **✅ Fehlermuster-Tracking & Rechenweg** – worked-Aufgaben mit Rechenweg-Feld, Fehlerart-Auswahl bei falscher Antwort, Häufigkeits-Statistik.
 8. **✅ Confidence & Gamification** – 3-stufige Selbsteinschätzung (fließt in SR), XP pro Aufgabe, Tages-Streak, Fortschrittsbalken.
+
+### Erweiterungen (nach Feedback)
+- **Kapitel pro Modul**: mehrere Skripte in einem Modul (`chapters`). Lernen läuft
+  kapitelweise; Kapitel N wird frei, wenn N-1 ≥ 50 %/gefestigt. `loadChaptersWithState`.
+- **Challenges**: `buildSession({challenge:true})` mischt Aufgaben quer über alle
+  freigeschalteten Kapitel (Duolingo-Style), XP-Bonus.
+- **Schwächen-Training**: Modul-Detail listet schwache Themen; „Vertiefen" erzeugt
+  gezielt Zusatzaufgaben (`generateTopicTasks`/`buildTopicPrompt`, API oder Import).
+- **Antwort-Eingabe**: cloze (mit Mathe) & worked → Selbsteinschätzung statt
+  exaktem Tippen; Mathe-Symbolleiste für Zahleneingaben. KaTeX-Delimiter im Prompt erzwungen.
+- **Generierung** überall zweigleisig: API-Key **oder** kostenloser claude.ai-Import
+  (`ui/coursegen.js`, `buildCoursePrompt`/`parseCourseJson`).
 
 ### Modell-/Algorithmus-Details
 - **Half-Life**: korrekt → `hl *= {low:1.35, mid:2.0, high:2.6}`; falsch → `hl = max(0.2, hl*0.4)`; `dueAt = now + hl·Tag`. Nahe Termin auf `daysLeft/3` gedeckelt.

@@ -54,6 +54,14 @@ const KURS_SCHEMA = {
   required: ['themen'],
 };
 
+// Schema für Zusatzaufgaben (Schwächen-Vertiefung).
+const TASKS_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { aufgaben: { type: 'array', items: AUFGABE_SCHEMA } },
+  required: ['aufgaben'],
+};
+
 // Schema für die Probeklausur-Analyse.
 const KLAUSUR_SCHEMA = {
   type: 'object',
@@ -181,6 +189,62 @@ export function parseCourseJson(raw) {
     throw new Error('Im JSON wurde keine „themen"-Liste gefunden.');
   }
   return obj;
+}
+
+const DEEPEN_SYSTEM =
+  'Du bist ein erfahrener Hochschul-Tutor. Du erzeugst zusätzliche Übungsaufgaben zu EINEM ' +
+  'Thema, um eine erkannte Schwäche gezielt zu vertiefen. Antworte ausschließlich auf Deutsch. ' +
+  'Lege besonderen Wert auf ausführliche, gut verständliche Lösungswege. ' + QUALITY_HINT + ' ' + MATH_HINT;
+
+function deepenUser(topic, { errorTags = [], count = 5 } = {}) {
+  return [
+    `Thema: "${topic.title}".`,
+    topic.summary ? 'Kontext aus dem Skript: ' + topic.summary : '',
+    errorTags.length ? `Der Nutzer macht hier besonders diese Fehler: ${errorTags.join(', ')}. Adressiere sie gezielt.` : '',
+    `Erzeuge ${count} NEUE, abwechslungsreiche Übungsaufgaben mit steigender Schwierigkeit und besonders ausführlich erklärten Lösungswegen.`,
+  ].filter(Boolean).join('\n');
+}
+
+/** Zusatzaufgaben zu einem Thema generieren (API-Weg). Liefert ein Array Aufgaben. */
+export async function generateTopicTasks(topic, focus = {}, opts = {}) {
+  const res = await streamJson(buildBody(DEEPEN_SYSTEM, deepenUser(topic, focus), TASKS_SCHEMA, 12000), opts);
+  if (!Array.isArray(res.aufgaben) || !res.aufgaben.length) throw new Error('Es wurden keine Aufgaben erzeugt.');
+  return res.aufgaben;
+}
+
+/** Fertiger Prompt zur Schwächen-Vertiefung für den claude.ai-Import. */
+export function buildTopicPrompt(topic, focus = {}) {
+  const schema =
+`{
+  "aufgaben": [
+    { "typ": "mc"|"cloze"|"number"|"worked", "frage": "string", "optionen": [],
+      "loesung": "string", "loesungsweg": ["Schritt 1"], "schwierigkeit": 1-3, "fehlerarten": [] }
+  ]
+}`;
+  return [
+    DEEPEN_SYSTEM,
+    '',
+    deepenUser(topic, focus),
+    '',
+    'Gib deine Antwort AUSSCHLIESSLICH als JSON-Objekt gemäß diesem Schema zurück – kein Fließtext, keine ```-Fences:',
+    schema,
+  ].join('\n');
+}
+
+/** Parst eine JSON-Antwort mit Zusatzaufgaben ({ aufgaben: [...] } oder bares Array). */
+export function parseTasksJson(raw) {
+  let s = String(raw || '').trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  const objStart = s.indexOf('{'), arrStart = s.indexOf('[');
+  const useArr = arrStart >= 0 && (objStart < 0 || arrStart < objStart);
+  if (useArr) { const b = s.lastIndexOf(']'); if (b > arrStart) s = s.slice(arrStart, b + 1); }
+  else if (objStart >= 0) { const b = s.lastIndexOf('}'); if (b > objStart) s = s.slice(objStart, b + 1); }
+  let parsed;
+  try { parsed = JSON.parse(s); } catch { throw new Error('Das eingefügte JSON ist ungültig.'); }
+  const arr = Array.isArray(parsed) ? parsed : parsed?.aufgaben;
+  if (!Array.isArray(arr) || !arr.length) throw new Error('Im JSON wurden keine Aufgaben gefunden.');
+  return arr;
 }
 
 /** Baut den Request-Body für einen strukturierten Aufruf. */

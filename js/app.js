@@ -7,6 +7,8 @@ import { openDB } from './data/db.js';
 import * as Modules from './views/modules.js';
 import * as ModuleNew from './views/module-new.js';
 import * as ModuleDetail from './views/module-detail.js';
+import * as ChapterNew from './views/chapter-new.js';
+import * as Deepen from './views/deepen.js';
 import * as Session from './views/session.js';
 import * as Exam from './views/exam.js';
 import * as Stats from './views/stats.js';
@@ -36,6 +38,8 @@ function page(mod, tab) {
 /* ---------- Routes ---------- */
 route('/modules', page(Modules, 'modules'));
 route('/modules/new', page(ModuleNew, 'modules'));
+route('/modules/:id/add-chapter', page(ChapterNew, 'modules'));
+route('/modules/:id/deepen', page(Deepen, 'modules'));
 route('/modules/:id', page(ModuleDetail, 'modules'));
 route('/session', page(Session, 'session'));
 route('/exam', page(Exam, 'exam'));
