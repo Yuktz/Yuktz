@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f1020" />
+  <title>ExamCoach</title>
+  <meta name="description" content="Persönlicher Lern-Coach für die Klausurvorbereitung – lokal, offline, ohne Tracking." />
+
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ExamCoach" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="vendor/katex/katex.min.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Top app bar -->
+  <header class="appbar" id="appbar">
+    <button class="appbar__back" id="backBtn" aria-label="Zurück" hidden>‹</button>
+    <h1 class="appbar__title" id="appbarTitle">ExamCoach</h1>
+    <div class="appbar__actions" id="appbarActions"></div>
+  </header>
+
+  <!-- Main routed view -->
+  <main class="view" id="view" aria-live="polite"></main>
+
+  <!-- Bottom tab navigation -->
+  <nav class="tabbar" id="tabbar" aria-label="Hauptnavigation">
+    <a class="tab" data-route="/modules" href="#/modules">
+      <span class="tab__icon" aria-hidden="true">📚</span>
+      <span class="tab__label">Module</span>
+    </a>
+    <a class="tab" data-route="/session" href="#/session">
+      <span class="tab__icon" aria-hidden="true">🎯</span>
+      <span class="tab__label">Lernen</span>
+    </a>
+    <a class="tab" data-route="/exam" href="#/exam">
+      <span class="tab__icon" aria-hidden="true">📝</span>
+      <span class="tab__label">Klausur</span>
+    </a>
+    <a class="tab" data-route="/stats" href="#/stats">
+      <span class="tab__icon" aria-hidden="true">📊</span>
+      <span class="tab__label">Statistik</span>
+    </a>
+  </nav>
+
+  <!-- KaTeX (lokal, offline) – muss vor dem Modul-Script laufen -->
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="vendor/katex/auto-render.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
